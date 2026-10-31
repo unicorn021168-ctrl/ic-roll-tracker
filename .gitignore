@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+*data*/
+*.sqlite*
+*.jsonl
+kdocs.json
+config.local.json
+*.log
+.env*
+dist/
