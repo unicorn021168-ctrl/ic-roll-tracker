@@ -27,6 +27,7 @@ class Tests(unittest.TestCase):
     def test_freshness(self):
         now = datetime(2026, 11, 2, 10, 30, tzinfo=track.CST)
         self.assertTrue(track.fresh([now-timedelta(seconds=20), now], now, 180, 60))
+        self.assertTrue(track.fresh([now+timedelta(seconds=5)], now, 180, 60))
         self.assertFalse(track.fresh([now-timedelta(days=1)], now, 180, 60))
         self.assertFalse(track.fresh([now-timedelta(seconds=90), now], now, 180, 60))
         self.assertFalse(track.fresh([now+timedelta(seconds=30)], now, 180, 60))

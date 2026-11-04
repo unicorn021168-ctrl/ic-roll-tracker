@@ -65,7 +65,7 @@ def in_session(now):
 def fresh(stamps, now, max_age, max_skew):
     if not stamps:
         return False
-    return (all(0 <= (now-stamp).total_seconds() <= max_age for stamp in stamps)
+    return (all(-10 <= (now-stamp).total_seconds() <= max_age for stamp in stamps)
             and (max(stamps)-min(stamps)).total_seconds() <= max_skew)
 
 
