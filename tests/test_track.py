@@ -36,6 +36,9 @@ class Tests(unittest.TestCase):
         self.assertFalse(track.in_session(datetime(2026,10,31,10,30,tzinfo=track.CST)))
         self.assertFalse(track.in_session(datetime(2026,11,2,12,0,tzinfo=track.CST)))
         self.assertTrue(track.in_session(datetime(2026,11,2,14,0,tzinfo=track.CST)))
+        self.assertTrue(track.slot_started(datetime(2026,11,2,11,0,tzinfo=track.CST),'10:30'))
+        self.assertTrue(track.slot_started(datetime(2026,11,2,14,12,tzinfo=track.CST),'14:00'))
+        self.assertFalse(track.slot_started(datetime(2026,11,2,13,59,tzinfo=track.CST),'14:00'))
         self.assertEqual(str(track.estimated_expiry('IC2709')), '2027-09-17')
 
     def test_dedup(self):

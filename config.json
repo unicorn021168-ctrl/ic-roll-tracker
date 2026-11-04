@@ -3,6 +3,5 @@
   "round_trip_cost_yuan_per_lot": null,
   "max_quote_age_seconds": 180,
   "max_quote_skew_seconds": 60,
-  "max_schedule_lateness_seconds": 600,
   "expiry_overrides": {}
 }

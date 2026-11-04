@@ -23,7 +23,7 @@ python scripts/track.py collect --slot 14:00 --data-dir "DATA_DIR"
 
 本地任务需要电脑、客户端和网络可用。云端须先验证Python、行情、CLI密钥链和持久存储，不可直接引用本地路径。
 
-超过十分钟的迟到不能回填；保留真实采样时间。同一天同一时点首笔有效记录优先，重跑不重复入库。0退出码可能是跳过，status.json的recorded才表示写入；有金山绑定时collect自动同步，结果另见kdocs-status.json。云端失败保留本地样本，可单独sync补传。
+10:30和14:00是启动时间。执行稍晚时可采集运行时的有效新鲜报价，并保留实际采样时间；收市或行情过期时跳过。同一天同一计划时点首笔有效记录优先，重跑不重复入库。0退出码可能是跳过，status.json的recorded才表示写入；有金山绑定时collect自动同步，结果另见kdocs-status.json。云端失败保留本地样本，可单独sync补传。
 
 ## 配置
 
@@ -31,7 +31,6 @@ python scripts/track.py collect --slot 14:00 --data-dir "DATA_DIR"
 - round_trip_cost_yuan_per_lot：一手移仓两腿总手续费与额外滑点，单位元/手，null表示未知。
 - max_quote_age_seconds：默认180秒。
 - max_quote_skew_seconds：默认60秒，包含期货各腿与指数。
-- max_schedule_lateness_seconds：默认600秒，始终保留实际时间。
 - expiry_overrides：真实合约为键，值含核实后的date（YYYY-MM-DD）及source来源链接；未核实时第三个周五仅作估算。
 
 ## 迁移与维护

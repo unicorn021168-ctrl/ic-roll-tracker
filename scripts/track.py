@@ -62,6 +62,10 @@ def in_session(now):
                                  '13:00:00' <= clock <= '15:00:00')
 
 
+def slot_started(now, slot):
+    return now.strftime('%H:%M') >= slot
+
+
 def fresh(stamps, now, max_age, max_skew):
     if not stamps:
         return False
@@ -263,10 +267,8 @@ def main():
             status['message'] = '非交易时段或周末，跳过采集'
         else:
             if args.mode == 'collect':
-                scheduled = datetime.fromisoformat(now.strftime('%Y-%m-%d')+'T'+args.slot+':00+08:00')
-                delay = (now-scheduled).total_seconds()
-                if not 0 <= delay <= config['max_schedule_lateness_seconds']:
-                    raise ValueError('已错过该时点，不能用现在行情回填；仅可单独 probe 查看')
+                if not slot_started(now, args.slot):
+                    raise ValueError('尚未到计划启动时间')
             snap = get_snapshot(config,folder/'raw')
             (folder/'last_fetch.json').write_text(json.dumps(snap,ensure_ascii=False,indent=2,allow_nan=False),encoding='utf-8')
             if args.mode == 'probe':
