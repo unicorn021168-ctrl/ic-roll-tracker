@@ -43,4 +43,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(result[1][1:],[100,''])
         self.assertEqual(result[2][1:],['',200])
 
+    def test_chart_listing_accepts_live_cli_shape(self):
+        response={'result':{'charts':[{'index':1,'chartTitle':'价格（指数点）'}]}}
+        self.assertEqual(sync.chart_items(response)[0]['index'],1)
+
 if __name__=='__main__': unittest.main()

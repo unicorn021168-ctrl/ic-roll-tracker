@@ -119,6 +119,13 @@ def col_name(index):
     return result
 
 
+def chart_items(response):
+    """Accept both documented and actual CLI chart-response envelopes."""
+    body = response.get('detail', response)
+    body = body.get('result', body)
+    return body.get('charts', [])
+
+
 class Book:
     def __init__(self,file_id):
         self.file_id=file_id
@@ -187,8 +194,8 @@ class Book:
         if len(matrix)<2 or len(matrix[0])<2: return
         source='A1:'+col_name(len(matrix[0])-1)+str(len(matrix))
         response=self.api('get-chart-information',worksheet_id=sheet['sheetId'])
-        charts=response.get('detail',response).get('charts',[])
-        match=next((c for c in charts if c.get('title')==title),None)
+        charts=chart_items(response)
+        match=next((c for c in charts if c.get('title',c.get('chartTitle'))==title),None)
         if match:
             if match.get('sourceAddress')!=source:
                 self.api('update-chart',worksheet_id=sheet['sheetId'],index=match['index'],
@@ -200,8 +207,8 @@ class Book:
                      sourceAddress=source,rectAddress=col_name(start)+'2:'+col_name(start+10)+'22',
                      title=title,plotBy='columns')
         response=self.api('get-chart-information',worksheet_id=sheet['sheetId'])
-        check=response.get('detail',response).get('charts',[])
-        if not any(c.get('title')==title for c in check):
+        check=chart_items(response)
+        if not any(c.get('title',c.get('chartTitle'))==title for c in check):
             raise RuntimeError('图表创建或更新后未找到：'+title)
 
 
