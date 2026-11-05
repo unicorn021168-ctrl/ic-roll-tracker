@@ -47,4 +47,29 @@ class Tests(unittest.TestCase):
         response={'result':{'charts':[{'index':1,'chartTitle':'价格（指数点）'}]}}
         self.assertEqual(sync.chart_items(response)[0]['index'],1)
 
+    def test_chart_rejects_prices_in_discount_series(self):
+        matrix=[['time','IC2703'],['2026-11-05 14:00',142.0]]
+        chart={'seriesDetails':[{'name':'IC2703','xValues':['2026-11-05 14:00'],'values':[6450.8]}]}
+        self.assertFalse(sync.chart_matches(chart,matrix))
+        chart['seriesDetails'][0]['values']=[142.0]
+        self.assertTrue(sync.chart_matches(chart,matrix))
+        chart['seriesDetails'][0]['xValues']=['wrong time']
+        self.assertFalse(sync.chart_matches(chart,matrix))
+
+    def test_chart_source_is_qualified_for_existing_and_new_charts(self):
+        matrix=[['time','IC2703'],['t',142.0]]
+        verified={'index':1,'chartTitle':'discount','seriesDetails':[
+            {'name':'IC2703','xValues':['t'],'values':[142.0]}]}
+        for initial in ([],[{'index':1,'chartTitle':'discount'}]):
+            calls=[]
+            responses=iter([{'charts':initial},{'charts':[verified]}])
+            book=object.__new__(sync.Book)
+            def api(action,**params):
+                calls.append((action,params))
+                return next(responses) if action=='get-chart-information' else {}
+            book.api=api
+            book.chart({'sheetId':6,'sheetName':'Discount'},matrix,'discount')
+            writes=[p for a,p in calls if a in ('update-chart','add-chart')]
+            self.assertEqual(writes[0]['sourceAddress'],"'Discount'!A1:B2")
+
 if __name__=='__main__': unittest.main()

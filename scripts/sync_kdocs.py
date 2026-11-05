@@ -126,6 +126,22 @@ def chart_items(response):
     return body.get('charts', [])
 
 
+def chart_matches(chart, matrix):
+    """Verify plotted values, not just titles (the live API omits sourceAddress)."""
+    series = chart.get('seriesDetails', [])
+    if len(series) != len(matrix[0])-1:
+        return False
+    times = [row[0] for row in matrix[1:]]
+    for col, item in enumerate(series, 1):
+        values = item.get('values', [])
+        if item.get('name') != matrix[0][col] or item.get('xValues') != times:
+            return False
+        expected = [row[col] for row in matrix[1:]]
+        if len(values) != len(expected) or not all(same(a,b) for a,b in zip(values,expected)):
+            return False
+    return True
+
+
 class Book:
     def __init__(self,file_id):
         self.file_id=file_id
@@ -192,7 +208,8 @@ class Book:
 
     def chart(self,sheet,matrix,title):
         if len(matrix)<2 or len(matrix[0])<2: return
-        source='A1:'+col_name(len(matrix[0])-1)+str(len(matrix))
+        # Unqualified addresses can resolve against the active worksheet.
+        source="'"+sheet['sheetName'].replace("'", "''")+"'!A1:"+col_name(len(matrix[0])-1)+str(len(matrix))
         response=self.api('get-chart-information',worksheet_id=sheet['sheetId'])
         charts=chart_items(response)
         match=next((c for c in charts if c.get('title',c.get('chartTitle'))==title),None)
@@ -208,8 +225,9 @@ class Book:
                      title=title,plotBy='columns')
         response=self.api('get-chart-information',worksheet_id=sheet['sheetId'])
         check=chart_items(response)
-        if not any(c.get('title',c.get('chartTitle'))==title for c in check):
-            raise RuntimeError('图表创建或更新后未找到：'+title)
+        verified=next((c for c in check if c.get('title',c.get('chartTitle'))==title),None)
+        if verified is None or not chart_matches(verified,matrix):
+            raise RuntimeError('图表数据系列回读验证失败：'+title)
 
 
 def load_history(folder):
