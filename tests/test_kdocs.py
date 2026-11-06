@@ -7,6 +7,23 @@ import sync_kdocs as sync
 
 
 class Tests(unittest.TestCase):
+    def test_current_view_rotates_contracts_without_stitching_history(self):
+        rows=[sync.QUOTE_HEADERS]
+        for day,symbols in [('2026-11-06',['IC2611','IC2612','IC2703','IC2706']),
+                            ('2026-11-23',['IC2612','IC2701','IC2703','IC2706'])]:
+            for i,symbol in enumerate(symbols):
+                row=['']*len(sync.QUOTE_HEADERS)
+                row[1:6]=[day,'14:00',day,symbol,str(100+i)]
+                row[9]='20'+symbol[2:4]+'-'+symbol[4:6]+'-20'
+                rows.append(row)
+        contracts=sync.current_contracts(rows)
+        self.assertEqual([x[0] for x in contracts],['IC2612','IC2701','IC2703','IC2706'])
+        result=sync.current_curve(rows,5,contracts)
+        self.assertEqual(len(result),2)
+        self.assertEqual(result[1][0],'2026-11-23 14:00')
+        self.assertIn('IC2612｜近月',result[0])
+        self.assertEqual(len(rows),9)  # Full raw history, including expired IC2611, survives.
+
     def test_decode_nested_response_and_error(self):
         self.assertEqual(sync.unwrap({'code':0,'data':{'code':0,'data':{'x':1}}}),{'x':1})
         with self.assertRaises(RuntimeError): sync.unwrap({'code':0,'data':{'code':403,'msg':'forbidden'}})

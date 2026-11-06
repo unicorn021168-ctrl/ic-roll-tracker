@@ -19,8 +19,10 @@ QUOTE_HEADERS = ['记录键','交易日','计划时点','实际采样时间','�
 ROLL_HEADERS = ['记录键','交易日','计划时点','实际采样时间','移仓合约对','扣费前价差(点)',
                 '对应金额(元/手)','扣费后价差(点)','区间年化价差(%)','到期间隔(天)','两腿成本(元/手)']
 CURVES = [('价格曲线',5,'价格（指数点）'),('贴水曲线',11,'贴水（点）'),
-          ('年化贴水曲线',13,'年化贴水（%，到期未核实时为估算）'),
-          ('移仓价差曲线',5,'移仓扣费前价差（点）')]
+          ('年化贴水曲线',13,'年化贴水（%，到期未核实时为估算）')]
+ROLL_SHEET = '移仓观察'
+ROLL_DETAIL_ROW = 24
+ROLL_CHART_COL = 12
 
 
 def unwrap(value):
@@ -123,6 +125,28 @@ def col_name(index):
     return result
 
 
+def current_contracts(rows):
+    if len(rows)<2: return []
+    latest=max((r[1],r[2]) for r in rows[1:])
+    current=sorted((r for r in rows[1:] if (r[1],r[2])==latest),key=lambda r:r[9])
+    if len(current)!=4: raise ValueError('最新正式样本不是四个挂牌合约，停止改动当前视图')
+    roles=['近月','次近月','远季1','远季2']
+    return [(r[4],role,r[9],r[1]+' '+r[2]) for r,role in zip(current,roles)]
+
+
+def current_curve(rows, value_col, contracts):
+    """Keep real symbols; display only the current quartet's common history."""
+    symbols=[c[0] for c in contracts]
+    selected=[rows[0]]+[r for r in rows[1:] if r[4] in symbols]
+    matrix=curve(selected,4,value_col)
+    positions=[matrix[0].index(symbol) for symbol in symbols]
+    result=[['采样时点（北京时间）']+[symbol+'｜'+role for symbol,role,_,_ in contracts]]
+    for row in matrix[1:]:
+        values=[row[i] for i in positions]
+        if all(v not in ('',None) for v in values): result.append([row[0]]+values)
+    return result
+
+
 def chart_items(response):
     """Accept both documented and actual CLI chart-response envelopes."""
     body = response.get('detail', response)
@@ -164,28 +188,28 @@ class Book:
             self.refresh()  # IDs are always read from the API, never assumed.
         return self.sheets[name]
 
-    def read(self,sheet,width):
+    def read(self,sheet,width,row_offset=0,col_offset=0):
         end=sheet.get('rowTo',0)
         if sheet.get('isEmpty'): return []
         result=[]
-        for start in range(0,end+1,250):
+        for start in range(row_offset,end+1,250):
             last=min(end,start+249)
             response=self.api('get-range-data',worksheet_id=sheet['sheetId'],
-                              range={'rowFrom':start,'rowTo':last,'colFrom':0,'colTo':width-1})
-            cells=response.get('detail',{}).get('rangeData',[])
+                              range={'rowFrom':start,'rowTo':last,'colFrom':col_offset,'colTo':col_offset+width-1})
+            cells=response.get('detail',{}).get('rangeData') or []
             block=[['']*width for _ in range(last-start+1)]
             for cell in cells:
-                r,c=cell['rowFrom'],cell['colFrom']
+                r,c=cell['rowFrom'],cell['colFrom']-col_offset
                 if start<=r<=last and 0<=c<width:
                     block[r-start][c]=cell.get('originalCellValue',cell.get('cellText',''))
             result.extend(block)
         while result and not any(v not in ('',None) for v in result[-1]): result.pop()
         return result
 
-    def write(self,name,matrix,existing=None):
+    def write(self,name,matrix,existing=None,row_offset=0,col_offset=0):
         sheet=self.ensure(name)
         width=max(len(row) for row in matrix)
-        if existing is None: existing=self.read(sheet,width)
+        if existing is None: existing=self.read(sheet,width,row_offset,col_offset)
         changes=[]
         for r,row in enumerate(matrix):
             for c,value in enumerate(row):
@@ -194,8 +218,8 @@ class Book:
                 # Kdocs parses a plain number through an inherited percent format,
                 # sometimes storing 6598 as 65.98. A numeric formula preserves value.
                 literal='='+str(value) if isinstance(value,(int,float)) else "'"+str(value)
-                changes.append(dict(op_type='cell_operation_type_formula',row_from=r,row_to=r,
-                                    col_from=c,col_to=c,formula=literal))
+                changes.append(dict(op_type='cell_operation_type_formula',row_from=r+row_offset,row_to=r+row_offset,
+                                    col_from=c+col_offset,col_to=c+col_offset,formula=literal))
         for start in range(0,len(changes),300):
             chunk=changes[start:start+300]
             self.api('range-data-batch-update',worksheet_id=sheet['sheetId'],range_data=chunk)
@@ -207,15 +231,15 @@ class Book:
                     for x in got.get('detail',{}).get('rangeData',[])}
             for change in chunk:
                 pos=(change['row_from'],change['col_from'])
-                if not same(values.get(pos,''),matrix[pos[0]][pos[1]]):
+                if not same(values.get(pos,''),matrix[pos[0]-row_offset][pos[1]-col_offset]):
                     raise RuntimeError('云端回读验证失败：'+name+' '+str(pos))
         print(json.dumps({'sheet':name,'changed_cells':len(changes)},ensure_ascii=True),flush=True)
         return sheet
 
-    def chart(self,sheet,matrix,title):
+    def chart(self,sheet,matrix,title,row_offset=0,col_offset=0,rect=None):
         if len(matrix)<2 or len(matrix[0])<2: return
         # Unqualified addresses can resolve against the active worksheet.
-        source="'"+sheet['sheetName'].replace("'", "''")+"'!A1:"+col_name(len(matrix[0])-1)+str(len(matrix))
+        source="'"+sheet['sheetName'].replace("'", "''")+"'!"+col_name(col_offset)+str(row_offset+1)+':'+col_name(col_offset+len(matrix[0])-1)+str(row_offset+len(matrix))
         response=self.api('get-chart-information',worksheet_id=sheet['sheetId'])
         charts=chart_items(response)
         matches=[c for c in charts if c.get('title',c.get('chartTitle'))==title]
@@ -224,11 +248,14 @@ class Book:
                 if not chart_matches(match,matrix):
                     self.api('update-chart',worksheet_id=sheet['sheetId'],index=match['index'],
                              updateType='data_source',sourceAddress=source,plotBy='columns')
+                if rect:
+                    self.api('update-chart',worksheet_id=sheet['sheetId'],index=match['index'],
+                             updateType='position',rectAddress=rect)
         else:
             # To the right of data; do not cover the first columns.
             start=max(8,len(matrix[0])+1)
             self.api('add-chart',worksheet_id=sheet['sheetId'],chartType='line_markers',
-                     sourceAddress=source,rectAddress=col_name(start)+'2:'+col_name(start+10)+'22',
+                     sourceAddress=source,rectAddress=rect or col_name(start)+'2:'+col_name(start+10)+'22',
                      title=title,plotBy='columns')
         response=self.api('get-chart-information',worksheet_id=sheet['sheetId'])
         check=chart_items(response)
@@ -275,13 +302,26 @@ def run(folder,initialize=False):
     local_quotes,local_rolls=rows_from_snapshots(load_history(folder))
     merged=[]
     # Preserve remote history even when another agent/machine has an empty local database.
-    for name,headers,local in [('合约数据',QUOTE_HEADERS,local_quotes),('移仓数据',ROLL_HEADERS,local_rolls)]:
+    for name,headers,local in [('合约数据',QUOTE_HEADERS,local_quotes)]:
         sheet=book.ensure(name)
         remote=book.read(sheet,len(headers))
         matrix=merge_rows(remote,local,headers)
         book.write(name,matrix,remote)
         merged.append(matrix)
-    quotes,rolls=merged
+    quotes=merged[0]
+    # Migration keeps the original detail sheet until the operator verifies and
+    # removes it. Recurring sync never deletes worksheets or touches trade records.
+    if ROLL_SHEET not in book.sheets and '移仓价差曲线' in book.sheets:
+        book.api('update-sheet',worksheet_id=book.sheets['移仓价差曲线']['sheetId'],name=ROLL_SHEET)
+        book.refresh()
+    roll_sheet=book.ensure(ROLL_SHEET)
+    remote=book.read(roll_sheet,len(ROLL_HEADERS),ROLL_DETAIL_ROW)
+    rolls=merge_rows(remote,local_rolls,ROLL_HEADERS)
+    if '移仓数据' in book.sheets:
+        legacy=book.read(book.sheets['移仓数据'],len(ROLL_HEADERS))
+        rolls=merge_rows(legacy,rolls[1:],ROLL_HEADERS)
+    book.write(ROLL_SHEET,rolls,row_offset=ROLL_DETAIL_ROW)
+    contracts=current_contracts(quotes)
     samples=len({r[1]+' '+r[2] for r in quotes[1:]})
     status_path=folder/'status.json'
     status=json.loads(status_path.read_text(encoding='utf-8')) if status_path.exists() else {}
@@ -293,7 +333,9 @@ def run(folder,initialize=False):
               ['移仓口径','现持买一减远月卖一；两腿成本未知时扣费后留空'],
               ['到期口径','未核实到期日使用第三个周五估算，未包含节假日调整'],
               ['使用边界','暂无已回测的最优阈值；多头仍承担指数风险；不自动交易'],
-              ['维护方式','各表为技能管理区域，请将个人备注放在另建工作表；同时只启用一个采集调度器']]
+              ['维护方式','移仓记录可手工编辑，定时同步不读写该表；其他表为自动监测区；只启用一个采集调度器'],
+              ['日常图表','只显示最新正式样本的四份挂牌合约共同有数据的期间；完整历史保留在合约数据'],
+              ['角色说明','近月、次近月按到期顺序；远季1、远季2为随后两个季月。图例角色截至最新样本，并非历史时点角色']]
     probe=folder/'last_fetch.json'
     if probe.exists():
         last=json.loads(probe.read_text(encoding='utf-8'))
@@ -302,11 +344,30 @@ def run(folder,initialize=False):
         overview += [[q['symbol'],q['price'],q['quote_time']] for q in last['quotes']]
         overview += [['中证500指数',last['spot']['price'],last['spot']['quote_time']]]
     book.write('监测总览',overview)
+    role_rows=[['当前挂牌合约','期限角色','到期日（未核实时为估算）','角色截至采样时点']]+[list(c) for c in contracts]
+    book.write('监测总览',role_rows,col_offset=4)
     for name,idx,title in CURVES:
-        matrix=curve(rolls if name=='移仓价差曲线' else quotes,4,idx)
+        matrix=current_curve(quotes,idx,contracts) if contracts else [['等待有效历史']]
         if len(matrix[0])==1: matrix[0].append('等待有效历史')
-        sheet=book.write(name,matrix)
+        sheet=book.ensure(name)
+        # Clear only this generated view, never the full contract history.
+        width=max(len(matrix[0]),sheet.get('colTo',0)+1)
+        height=max(len(matrix),sheet.get('rowTo',0)+1)
+        view=[(matrix[i] if i<len(matrix) else [])+['']*(width-(len(matrix[i]) if i<len(matrix) else 0)) for i in range(height)]
+        sheet=book.write(name,view)
         book.chart(sheet,matrix,title)
+    top=[['']*11 for _ in range(ROLL_DETAIL_ROW)]
+    top[0][0]='移仓观察｜盘口价差观察，不代表实际成交'
+    top[21][0]='下方为完整观察明细；实际交易请填写「移仓记录」。曲线数据位于M列起。'
+    top[22][0]='当前持仓：'+(config.get('holding') or '未配置')
+    book.write(ROLL_SHEET,top)
+    active=[r for r in rolls[1:] if r[4].startswith((config.get('holding') or '?')+' → ')]
+    matrix=curve([ROLL_HEADERS]+active,4,5)
+    # Restrict chart to times with all displayed pairs; details retain all samples.
+    matrix=[matrix[0]]+[r for r in matrix[1:] if all(v not in ('',None) for v in r[1:])]
+    if len(matrix[0])<2: matrix[0].append('等待可比较远月')
+    book.write(ROLL_SHEET,matrix,col_offset=ROLL_CHART_COL)
+    book.chart(roll_sheet,matrix,'移仓扣费前价差（点）',col_offset=ROLL_CHART_COL,rect='A2:K21')
     return dict(status='verified',file_id=binding['file_id'],link_url=binding.get('link_url',''),
                 quote_rows=len(quotes)-1,roll_rows=len(rolls)-1,samples=samples)
 
