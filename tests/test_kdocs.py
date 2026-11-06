@@ -43,6 +43,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(result[1][1:],[100,''])
         self.assertEqual(result[2][1:],['',200])
 
+    def test_chart_converts_cloud_numeric_text(self):
+        rows=[['key','date','slot','time','contract','discount'],
+              ['a','2099-01-01','10:30','t','IC9903','142.5']]
+        self.assertEqual(sync.curve(rows,4,5)[1][1],142.5)
+
     def test_chart_listing_accepts_live_cli_shape(self):
         response={'result':{'charts':[{'index':1,'chartTitle':'价格（指数点）'}]}}
         self.assertEqual(sync.chart_items(response)[0]['index'],1)
@@ -71,5 +76,19 @@ class Tests(unittest.TestCase):
             book.chart({'sheetId':6,'sheetName':'Discount'},matrix,'discount')
             writes=[p for a,p in calls if a in ('update-chart','add-chart')]
             self.assertEqual(writes[0]['sourceAddress'],"'Discount'!A1:B2")
+
+    def test_chart_updates_each_stale_duplicate(self):
+        matrix=[['time','IC2703'],['t',142.0]]
+        stale=[{'index':1,'chartTitle':'discount'},{'index':2,'chartTitle':'discount'}]
+        good=[dict(c,seriesDetails=[{'name':'IC2703','xValues':['t'],'values':[142.0]}]) for c in stale]
+        responses=iter([{'charts':stale},{'charts':good}])
+        calls=[]
+        book=object.__new__(sync.Book)
+        def api(action,**params):
+            calls.append((action,params))
+            return next(responses) if action=='get-chart-information' else {}
+        book.api=api
+        book.chart({'sheetId':6,'sheetName':'Discount'},matrix,'discount')
+        self.assertEqual([p['index'] for a,p in calls if a=='update-chart'],[1,2])
 
 if __name__=='__main__': unittest.main()

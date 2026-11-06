@@ -105,7 +105,11 @@ def curve(rows, label_col, value_col):
     by_time={}
     for r in rows[1:]:
         key=r[1]+' '+r[2]
-        by_time.setdefault(key,{})[r[label_col]]=r[value_col]
+        value=r[value_col]
+        # get-range-data returns originalCellValue as text even for numeric cells.
+        # Chart inputs must be numeric, including values read back from the cloud.
+        if value not in ('',None): value=float(value)
+        by_time.setdefault(key,{})[r[label_col]]=value
     return [['采样时点（北京时间）']+labels]+[
         [time]+[by_time[time].get(label,'') for label in labels] for time in sorted(by_time)]
 
@@ -187,7 +191,9 @@ class Book:
             for c,value in enumerate(row):
                 before=existing[r][c] if r<len(existing) and c<len(existing[r]) else ''
                 if same(before,value): continue
-                literal=str(value) if isinstance(value,(int,float)) else "'"+str(value)
+                # Kdocs parses a plain number through an inherited percent format,
+                # sometimes storing 6598 as 65.98. A numeric formula preserves value.
+                literal='='+str(value) if isinstance(value,(int,float)) else "'"+str(value)
                 changes.append(dict(op_type='cell_operation_type_formula',row_from=r,row_to=r,
                                     col_from=c,col_to=c,formula=literal))
         for start in range(0,len(changes),300):
@@ -212,11 +218,12 @@ class Book:
         source="'"+sheet['sheetName'].replace("'", "''")+"'!A1:"+col_name(len(matrix[0])-1)+str(len(matrix))
         response=self.api('get-chart-information',worksheet_id=sheet['sheetId'])
         charts=chart_items(response)
-        match=next((c for c in charts if c.get('title',c.get('chartTitle'))==title),None)
-        if match:
-            if match.get('sourceAddress')!=source:
-                self.api('update-chart',worksheet_id=sheet['sheetId'],index=match['index'],
-                         updateType='data_source',sourceAddress=source,plotBy='columns')
+        matches=[c for c in charts if c.get('title',c.get('chartTitle'))==title]
+        if matches:
+            for match in matches:
+                if not chart_matches(match,matrix):
+                    self.api('update-chart',worksheet_id=sheet['sheetId'],index=match['index'],
+                             updateType='data_source',sourceAddress=source,plotBy='columns')
         else:
             # To the right of data; do not cover the first columns.
             start=max(8,len(matrix[0])+1)
@@ -225,8 +232,8 @@ class Book:
                      title=title,plotBy='columns')
         response=self.api('get-chart-information',worksheet_id=sheet['sheetId'])
         check=chart_items(response)
-        verified=next((c for c in check if c.get('title',c.get('chartTitle'))==title),None)
-        if verified is None or not chart_matches(verified,matrix):
+        verified=[c for c in check if c.get('title',c.get('chartTitle'))==title]
+        if not verified or not all(chart_matches(c,matrix) for c in verified):
             raise RuntimeError('图表数据系列回读验证失败：'+title)
 
 
