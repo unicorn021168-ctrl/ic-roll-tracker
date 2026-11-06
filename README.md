@@ -23,15 +23,15 @@
 ## 命令
 
 ```text
-python scripts/track.py probe --data-dir "DATA_DIR"
-python scripts/sync_kdocs.py init --data-dir "DATA_DIR"
-python scripts/track.py collect --slot 10:30 --data-dir "DATA_DIR"
-python scripts/track.py collect --slot 14:00 --data-dir "DATA_DIR"
-python scripts/sync_kdocs.py sync --data-dir "DATA_DIR"
-python -m unittest discover -s tests -v
+python "<技能目录>/scripts/track.py" probe --data-dir "<数据目录>"
+python "<技能目录>/scripts/sync_kdocs.py" init --data-dir "<数据目录>"
+python "<技能目录>/scripts/track.py" collect --slot 10:30 --data-dir "<数据目录>"
+python "<技能目录>/scripts/track.py" collect --slot 14:00 --data-dir "<数据目录>"
+python "<技能目录>/scripts/sync_kdocs.py" sync --data-dir "<数据目录>"
+python -m unittest discover -s "<技能目录>/tests" -v
 ```
 
-将DATA_DIR替换为仓库外的绝对路径。首次probe建立运行config.json，holding默认留空，填写实际持仓后才进行移仓比较。有kdocs.json绑定后collect自动同步，无绑定仍可独立本地使用。个人配置、数据、文档标识与凭据不得上传GitHub。
+`<技能目录>`是本次安装中 `SKILL.md` 所在的文件夹；`<数据目录>`是用户在当前设备上选定的仓库外绝对路径。两者都不是仓库内的固定位置，也无需在技能升级时移动数据。首次probe建立运行config.json，holding默认留空，填写实际持仓后才进行移仓比较。有kdocs.json绑定后collect自动同步，无绑定仍可独立本地使用。个人配置、数据、文档标识与凭据不得上传GitHub。
 
 ## 口径与边界
 

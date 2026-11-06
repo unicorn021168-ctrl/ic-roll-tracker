@@ -8,15 +8,15 @@
 
 ## 初始化
 
-`python scripts/track.py probe --data-dir "DATA_DIR"`
+`python "<技能目录>/scripts/track.py" probe --data-dir "<数据目录>"`
 
-替换DATA_DIR为用户选定的绝对路径。probe初始化配置并检查接口，不写入历史。填写数据目录config.json中的实际持仓，未知手续费保持null。金山文档按[kdocs.md](kdocs.md)初始化或绑定。
+`<技能目录>`取当前安装的 `SKILL.md` 所在文件夹；`<数据目录>`取用户选定的仓库外绝对路径。probe初始化配置并检查接口，不写入历史。填写数据目录config.json中的实际持仓，未知手续费保持null。金山文档按[kdocs.md](kdocs.md)初始化或绑定。
 
 ## 每次运行
 
 ```text
-python scripts/track.py collect --slot 10:30 --data-dir "DATA_DIR"
-python scripts/track.py collect --slot 14:00 --data-dir "DATA_DIR"
+python "<技能目录>/scripts/track.py" collect --slot 10:30 --data-dir "<数据目录>"
+python "<技能目录>/scripts/track.py" collect --slot 14:00 --data-dir "<数据目录>"
 ```
 
 分别由当前Agent/系统调度器于北京时间周一至周五对应时点执行。先核对中金所休市安排；脚本另检查周末、时段和报价新鲜度。只启用一个调度器，迁移时停用旧任务。用户指定WorkBuddy时，不擅自用其他产品调度替代。
@@ -35,6 +35,6 @@ python scripts/track.py collect --slot 14:00 --data-dir "DATA_DIR"
 
 ## 迁移与维护
 
-同机换Agent：重用DATA_DIR与配置。换机器：迁移整个数据目录，并在新机重新登录kdocs-cli，不迁移明文凭据。云文档绑定在kdocs.json。即使新机本地库为空，也不清空云端历史；本地HTML只含本地拥有的数据。
+同机换Agent：重用原有数据目录与配置，在新Agent中重新定位技能目录。换机器：迁移整个数据目录，并在新机重新登录kdocs-cli，不迁移明文凭据。云文档绑定在kdocs.json。即使新机本地库为空，也不清空云端历史；本地HTML只含本地拥有的数据。
 
 report.html为本地报告，history.sqlite为正式历史，raw/保留来源。last_fetch.json可能只是probe，不能直接追加到正式历史。用户确认实际换月后才更新holding；保留过去样本的当时持仓。

@@ -6,11 +6,11 @@
 
 ## 创建或绑定
 
-新建：`python scripts/sync_kdocs.py init --data-dir "DATA_DIR"`。
+新建：`python "<技能目录>/scripts/sync_kdocs.py" init --data-dir "<数据目录>"`。
 
 查重后创建《IC贴水数据监测》xlsx，立即把 file_id、link_url、enabled 保存到 DATA_DIR/kdocs.json，后续失败不重复新建。已有同名文件但无本地绑定时，先用官方kdocs工具确认类型、归属和结构，再写入本地绑定，不猜ID。
 
-同步：`python scripts/sync_kdocs.py sync --data-dir "DATA_DIR"`。
+同步：`python "<技能目录>/scripts/sync_kdocs.py" sync --data-dir "<数据目录>"`。
 
 成功后展示 kdocs-status.json 的 link_url；若响应缺少链接，按官方kdocs参考调用get_file_link获取并保存。绑定后track.py collect自动同步。
 
